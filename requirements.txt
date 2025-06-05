@@ -6,4 +6,5 @@ autopep8
 flask
 gtts
 pydub
-zipfile
+gunicorn
+waitress

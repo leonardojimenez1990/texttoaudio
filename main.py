@@ -19,6 +19,53 @@ AUDIO_FILE = os.path.join(PUBLIC_FOLDER, 'tts_audio.mp3')
 # Crear directorios si no existen
 os.makedirs(PUBLIC_FOLDER, exist_ok=True)
 
+# Inicializar base de datos
+def init_db():
+    try:
+        conn = sqlite3.connect('tts_history.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audio_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL,
+                language TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_favorite BOOLEAN DEFAULT FALSE
+            )
+        ''')
+        conn.commit()
+        conn.close()
+        print("✅ Base de datos inicializada correctamente")
+    except Exception as e:
+        print(f"❌ Error inicializando base de datos: {e}")
+
+def save_to_history(text, language, filename):
+    try:
+        conn = sqlite3.connect('tts_history.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO audio_history (text, language, filename)
+            VALUES (?, ?, ?)
+        ''', (text, language, filename))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error guardando en historial: {e}")
+
+# Limpiar archivos antiguos
+def cleanup_old_files():
+    try:
+        current_time = time.time()
+        for filename in os.listdir(PUBLIC_FOLDER):
+            filepath = os.path.join(PUBLIC_FOLDER, filename)
+            # Eliminar archivos más antiguos de 1 hora
+            if os.path.isfile(filepath) and current_time - os.path.getctime(filepath) > 3600:
+                os.remove(filepath)
+                print(f"🗑️ Archivo limpiado: {filename}")
+    except Exception as e:
+        print(f"Error en limpieza: {e}")
+
 # Servir archivos estáticos desde /src
 @app.route('/src/<path:filename>')
 def static_files(filename):
@@ -31,7 +78,6 @@ def favicon():
     if os.path.exists(favicon_path):
         return send_from_directory(STATIC_FOLDER, 'favicon.ico')
     else:
-        # Retornar favicon vacío si no existe
         return '', 204
 
 # Ruta al frontend
@@ -54,6 +100,15 @@ def index():
         </body>
         </html>
         """, 200
+
+# Health check endpoint para producción
+@app.route('/health')
+def health_check():
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "1.0.0"
+    })
 
 # Endpoint para generar audio con validaciones mejoradas
 @app.route('/generate_audio', methods=['POST'])
@@ -181,40 +236,6 @@ def download_batch(filename):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Inicializar base de datos
-def init_db():
-    try:
-        conn = sqlite3.connect('tts_history.db')
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS audio_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                text TEXT NOT NULL,
-                language TEXT NOT NULL,
-                filename TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_favorite BOOLEAN DEFAULT FALSE
-            )
-        ''')
-        conn.commit()
-        conn.close()
-        print("✅ Base de datos inicializada correctamente")
-    except Exception as e:
-        print(f"❌ Error inicializando base de datos: {e}")
-
-def save_to_history(text, language, filename):
-    try:
-        conn = sqlite3.connect('tts_history.db')
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO audio_history (text, language, filename)
-            VALUES (?, ?, ?)
-        ''', (text, language, filename))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Error guardando en historial: {e}")
-
 @app.route('/history', methods=['GET'])
 def get_history():
     try:
@@ -332,19 +353,6 @@ def export_audio():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Limpiar archivos antiguos
-def cleanup_old_files():
-    try:
-        current_time = time.time()
-        for filename in os.listdir(PUBLIC_FOLDER):
-            filepath = os.path.join(PUBLIC_FOLDER, filename)
-            # Eliminar archivos más antiguos de 1 hora
-            if os.path.isfile(filepath) and current_time - os.path.getctime(filepath) > 3600:
-                os.remove(filepath)
-                print(f"🗑️ Archivo limpiado: {filename}")
-    except Exception as e:
-        print(f"Error en limpieza: {e}")
-
 if __name__ == "__main__":
     print("🚀 Iniciando Text-to-Speech Platform...")
     
@@ -354,7 +362,7 @@ if __name__ == "__main__":
     # Limpiar archivos antiguos
     cleanup_old_files()
     
-    # Configuración más robusta
+    # Configuración
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
     
@@ -362,11 +370,15 @@ if __name__ == "__main__":
     print(f"📁 Carpeta estática: {STATIC_FOLDER}")
     print(f"🎵 Carpeta pública: {PUBLIC_FOLDER}")
     print(f"🐛 Modo debug: {'Activado' if debug else 'Desactivado'}")
+    
+    if not debug:
+        print("⚠️  Para producción, usa: gunicorn main:app")
+    
     print("="*50)
     
     app.run(
         host='0.0.0.0', 
         port=port, 
         debug=debug,
-        threaded=True  # Mejor manejo de concurrencia
+        threaded=True
     )
