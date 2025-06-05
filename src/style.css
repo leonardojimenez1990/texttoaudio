@@ -114,6 +114,82 @@ button:hover {
     background-color: #5a6268;
 }
 
+.speed-control {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: center;
+}
+
+.speed-control label {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.speed-control input[type="range"] {
+    width: 100%;
+}
+
+.speed-control span {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.history-item {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.history-text {
+    flex-grow: 1;
+    margin-right: 15px;
+}
+
+.history-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.favorite-btn {
+    background: #ffc107;
+    color: #212529;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.favorite-btn.active {
+    background: #ff6b35;
+    color: white;
+}
+
+.batch-input-area {
+    display: none;
+    margin-top: 20px;
+}
+
+.batch-item {
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+
+.batch-item textarea {
+    width: 100%;
+    min-height: 60px;
+    margin-bottom: 10px;
+}
+
 @media (max-width: 768px) {
     .input-area {
         flex-direction: column;

@@ -25,27 +25,140 @@
           <div class="controls">
             <select id="language-select">
               <option value="es">Español</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="de">Deutsch</option>
+              <option value="it">Italiano</option>
+              <option value="pt">Português</option>
             </select>
+            
+            <!-- Nuevo control de velocidad -->
+            <div class="speed-control">
+              <label for="speed-slider">Velocidad:</label>
+              <input type="range" id="speed-slider" min="0.5" max="2" step="0.1" value="1">
+              <span id="speed-value">1.0x</span>
+            </div>
+            
+            <!-- Botón para modo lote -->
+            <button id="batch-mode-btn">Modo Lote</button>
             <button id="generate-audio">Generar Audio</button>
           </div>
         </div>
 
-        <audio id="audio-player" controls style="width: 100%;"></audio>
+        <!-- Contenedor de audio con controles de descarga -->
+        <div id="audio-container" style="display: none; margin-top: 20px;">
+          <audio id="audio-player" controls style="width: 100%; margin-bottom: 15px;"></audio>
+          
+          <div class="audio-controls" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button id="download-audio" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
+              📥 Descargar Audio
+            </button>
+            <button id="play-pause-audio" style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
+              ▶️ Reproducir
+            </button>
+          </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="loading" style="display: none; text-align: center; margin-top: 20px;">
+          <p>Generando audio...</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="error-message" style="display: none; background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin-top: 20px;">
+        </div>
+
+        <!-- Nueva sección para historial -->
+        <div id="history-section" style="margin-top: 30px;">
+          <h3>Historial Reciente</h3>
+          <div id="history-list"></div>
+        </div>
       </div>
     </div>
   </body>
   <script>
     const textInput = document.getElementById('text-input');
     const charCount = document.getElementById('char-count');
+    const audioContainer = document.getElementById('audio-container');
+    const audioPlayer = document.getElementById('audio-player');
+    const downloadBtn = document.getElementById('download-audio');
+    const playPauseBtn = document.getElementById('play-pause-audio');
+    const loading = document.getElementById('loading');
+    const errorMessage = document.getElementById('error-message');
+    const speedSlider = document.getElementById('speed-slider');
+    const speedValue = document.getElementById('speed-value');
+    const languageSelect = document.getElementById('language-select');
+    const batchModeBtn = document.getElementById('batch-mode-btn');
+    const historyList = document.getElementById('history-list');
+    
+    let currentAudioBlob = null;
+    let currentAudioUrl = null;
 
+    // Contador de caracteres
     textInput.addEventListener('input', () => {
       const length = textInput.value.length;
       charCount.textContent = `${length}/4990`;
+      
+      // Cambiar color si se acerca al límite
+      if (length > 4500) {
+        charCount.style.color = '#dc3545';
+      } else if (length > 4000) {
+        charCount.style.color = '#ffc107';
+      } else {
+        charCount.style.color = '#555';
+      }
     });
 
+    // Función para mostrar/ocultar elementos
+    function showElement(element) {
+      element.style.display = 'block';
+    }
+
+    function hideElement(element) {
+      element.style.display = 'none';
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      showElement(errorMessage);
+    }
+
+    function hideError() {
+      hideElement(errorMessage);
+    }
+
+    // Actualizar valor de velocidad
+    speedSlider.addEventListener('input', () => {
+      const value = speedSlider.value;
+      speedValue.textContent = `${value}x`;
+      
+      // Si el audio está reproduciéndose, actualizar la velocidad de reproducción
+      if (!audioPlayer.paused) {
+        audioPlayer.playbackRate = value;
+      }
+    });
+
+    // Generar audio
     document.getElementById('generate-audio').addEventListener('click', async () => {
-      const text = textInput.value;
-      const language = document.getElementById('language-select').value;
+      const text = textInput.value.trim();
+      const language = languageSelect.value;
+      const speed = speedSlider.value;
+
+      // Validaciones
+      if (!text) {
+        showError('Por favor, ingresa algún texto.');
+        return;
+      }
+
+      if (text.length > 4990) {
+        showError('El texto es demasiado largo.');
+        return;
+      }
+
+      // Mostrar loading y ocultar elementos previos
+      showElement(loading);
+      hideElement(audioContainer);
+      hideError();
 
       try {
         const response = await fetch('/generate_audio', {
@@ -53,22 +166,126 @@
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ text, lang: language })
+          body: JSON.stringify({ text, lang: language, speed: parseFloat(speed) })
         });
 
         if (response.ok) {
-          const blob = await response.blob();
-          const audioUrl = URL.createObjectURL(blob);
-          const audioPlayer = document.getElementById('audio-player');
-
-          audioPlayer.src = audioUrl;
-          audioPlayer.play();
+          // Guardar el blob para descarga
+          currentAudioBlob = await response.blob();
+          
+          // Limpiar URL anterior si existe
+          if (currentAudioUrl) {
+            URL.revokeObjectURL(currentAudioUrl);
+          }
+          
+          // Crear nueva URL
+          currentAudioUrl = URL.createObjectURL(currentAudioBlob);
+          
+          // Configurar reproductor
+          audioPlayer.src = currentAudioUrl;
+          audioPlayer.playbackRate = speed; // Establecer la velocidad de reproducción
+          
+          // Mostrar controles de audio
+          showElement(audioContainer);
+          
+          // Agregar a historial
+          addToHistory(text, language, speed);
+          
         } else {
-          console.error('Error generating audio:', response.statusText);
+          const errorData = await response.json();
+          showError(errorData.error || 'Error generando audio');
         }
       } catch (error) {
         console.error('Error:', error);
+        showError('Error de conexión. Intenta de nuevo.');
+      } finally {
+        hideElement(loading);
       }
     });
+
+    // Descargar audio
+    downloadBtn.addEventListener('click', () => {
+      if (!currentAudioBlob) {
+        showError('No hay audio para descargar');
+        return;
+      }
+
+      // Crear elemento de descarga
+      const a = document.createElement('a');
+      a.href = currentAudioUrl;
+      a.download = `texto_a_audio_${new Date().getTime()}.mp3`;
+      
+      // Ejecutar descarga
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+
+    // Control de reproducción
+    playPauseBtn.addEventListener('click', () => {
+      if (audioPlayer.paused) {
+        audioPlayer.play();
+        playPauseBtn.textContent = '⏸️ Pausar';
+      } else {
+        audioPlayer.pause();
+        playPauseBtn.textContent = '▶️ Reproducir';
+      }
+    });
+
+    // Actualizar botón cuando cambia el estado del audio
+    audioPlayer.addEventListener('play', () => {
+      playPauseBtn.textContent = '⏸️ Pausar';
+    });
+
+    audioPlayer.addEventListener('pause', () => {
+      playPauseBtn.textContent = '▶️ Reproducir';
+    });
+
+    audioPlayer.addEventListener('ended', () => {
+      playPauseBtn.textContent = '▶️ Reproducir';
+    });
+
+    // Limpiar URLs al cerrar la página
+    window.addEventListener('beforeunload', () => {
+      if (currentAudioUrl) {
+        URL.revokeObjectURL(currentAudioUrl);
+      }
+    });
+
+    // Atajo de teclado Ctrl+Enter para generar audio
+    textInput.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') {
+        document.getElementById('generate-audio').click();
+      }
+    });
+
+    // Función para agregar entrada al historial
+    function addToHistory(text, language, speed) {
+      const entry = document.createElement('div');
+      entry.className = 'history-entry';
+      entry.textContent = `${new Date().toLocaleString()}: ${text.substring(0, 50)}... (${language}, ${speed}x)`;
+      
+      // Enlace para reproducir desde el historial
+      const playLink = document.createElement('a');
+      playLink.href = '#';
+      playLink.textContent = 'Reproducir';
+      playLink.className = 'history-play';
+      playLink.onclick = (e) => {
+        e.preventDefault();
+        textInput.value = text;
+        languageSelect.value = language;
+        speedSlider.value = speed;
+        speedValue.textContent = `${speed}x`;
+        document.getElementById('generate-audio').click();
+      };
+      
+      entry.appendChild(playLink);
+      historyList.prepend(entry);
+      
+      // Limitar historial a las 10 entradas más recientes
+      if (historyList.children.length > 10) {
+        historyList.removeChild(historyList.lastChild);
+      }
+    }
   </script>
 </html>
