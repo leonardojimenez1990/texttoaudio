@@ -391,7 +391,7 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 - 📧 **Email**: [leonardojimenez1990@gmail.com]
 - 🐛 **Issues**: [GitHub Issues](https://github.com/leonardojimenez1990/texttoaudio/issues)
-- 💬 **linkedin**: [Servidor de Discord](https://www.linkedin.com/in/leonardo-jim%C3%A9nez-pearce-18488611b/)
+- 💬 **linkedin**: [Servidor de linkedin](https://www.linkedin.com/in/leonardo-jim%C3%A9nez-pearce-18488611b/)
 
 ---
 
