@@ -3,8 +3,9 @@ pip
 autopep8
 
 # App
-flask
+#flask
 gtts
 pydub
 gunicorn
 waitress
+streamlit
