@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Text-to-Speech Platform</title>
+    <link rel="stylesheet" href="/src/style.css">
+  </head>
+
+  <body>
+    <div class="container">
+      <h1 class="main-title">Plataforma de Text-to-Speech</h1>
+      <p class="subtitle">Convierte cualquier texto en audio de alta calidad. Perfecto para crear contenido accesible, podcasts automáticos, y experiencias de usuario inclusivas.</p>
+
+      <div class="test-section">
+        <div class="test-header">
+          <i class="fas fa-microphone"></i>
+          <h2>Prueba la Funcionalidad</h2>
+        </div>
+        <p class="test-description">Ingresa tu texto y genera audio instantáneamente</p>
+
+        <div class="input-area">
+          <textarea id="text-input" maxlength="4990" placeholder="Ingresa el texto que quieres convertir a audio..."></textarea>
+          <div id="char-count" style="text-align: right; font-size: 0.9em; color: #555;">0/4990</div>
+          <div class="controls">
+            <select id="language-select">
+              <option value="es">Español</option>
+            </select>
+            <button id="generate-audio">Generar Audio</button>
+          </div>
+        </div>
+
+        <audio id="audio-player" controls style="width: 100%;"></audio>
+      </div>
+    </div>
+  </body>
+  <script>
+    const textInput = document.getElementById('text-input');
+    const charCount = document.getElementById('char-count');
+
+    textInput.addEventListener('input', () => {
+      const length = textInput.value.length;
+      charCount.textContent = `${length}/4990`;
+    });
+
+    document.getElementById('generate-audio').addEventListener('click', async () => {
+      const text = textInput.value;
+      const language = document.getElementById('language-select').value;
+
+      try {
+        const response = await fetch('/generate_audio', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ text, lang: language })
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const audioUrl = URL.createObjectURL(blob);
+          const audioPlayer = document.getElementById('audio-player');
+
+          audioPlayer.src = audioUrl;
+          audioPlayer.play();
+        } else {
+          console.error('Error generating audio:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    });
+  </script>
+</html>
