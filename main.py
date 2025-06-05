@@ -7,6 +7,9 @@ import time
 from pydub import AudioSegment
 import zipfile
 import io
+import threading
+import signal
+import sys
 
 app = Flask(__name__)
 
@@ -18,6 +21,20 @@ AUDIO_FILE = os.path.join(PUBLIC_FOLDER, 'tts_audio.mp3')
 
 # Crear directorios si no existen
 os.makedirs(PUBLIC_FOLDER, exist_ok=True)
+
+# Detectar si estamos en Streamlit Cloud
+def is_streamlit_cloud():
+    return os.environ.get('STREAMLIT_SHARING_MODE') or os.environ.get('STREAMLIT_CLOUD')
+
+# Configuración segura para diferentes entornos
+def safe_signal_handler():
+    """Configurar manejador de señales solo si es posible"""
+    try:
+        if not is_streamlit_cloud() and hasattr(signal, 'SIGTERM'):
+            signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
+    except (ValueError, OSError):
+        # Ignorar errores de señales en entornos que no las soportan
+        pass
 
 # Inicializar base de datos
 def init_db():
@@ -93,10 +110,12 @@ def index():
         <head>
             <title>Text to Speech</title>
             <link rel="stylesheet" href="/src/style.css">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
         <body>
             <h1>Text to Speech Service</h1>
             <p>Coloca tu archivo index.html en la carpeta 'src'</p>
+            <p>Servicio activo en Streamlit Cloud</p>
         </body>
         </html>
         """, 200
@@ -107,7 +126,8 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "environment": "streamlit_cloud" if is_streamlit_cloud() else "local"
     })
 
 # Endpoint para generar audio con validaciones mejoradas
@@ -284,6 +304,7 @@ def system_info():
     return jsonify({
         "status": "online",
         "version": "1.0.0",
+        "environment": "streamlit_cloud" if is_streamlit_cloud() else "local",
         "supported_languages": list({
             'es': 'Spanish',
             'en': 'English', 
@@ -353,6 +374,39 @@ def export_audio():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Función para ejecutar Flask en modo compatible con Streamlit Cloud
+def run_flask_app():
+    """Ejecutar Flask de manera segura en diferentes entornos"""
+    
+    # Configurar manejador de señales seguro
+    safe_signal_handler()
+    
+    # Configuración del servidor
+    port = int(os.environ.get('PORT', 5000))
+    host = '0.0.0.0'
+    
+    # En Streamlit Cloud, usar configuración específica
+    if is_streamlit_cloud():
+        print("🌐 Ejecutando en Streamlit Cloud")
+        # Deshabilitar reloader y debugger en Streamlit Cloud
+        app.run(
+            host=host,
+            port=port,
+            debug=False,
+            use_reloader=False,
+            threaded=True
+        )
+    else:
+        # Configuración local normal
+        debug = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+        print(f"🌐 Ejecutando localmente en puerto {port}")
+        app.run(
+            host=host,
+            port=port,
+            debug=debug,
+            threaded=True
+        )
+
 if __name__ == "__main__":
     print("🚀 Iniciando Text-to-Speech Platform...")
     
@@ -362,23 +416,9 @@ if __name__ == "__main__":
     # Limpiar archivos antiguos
     cleanup_old_files()
     
-    # Configuración
-    port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
-    
-    print(f"🌐 Servidor en puerto: {port}")
     print(f"📁 Carpeta estática: {STATIC_FOLDER}")
     print(f"🎵 Carpeta pública: {PUBLIC_FOLDER}")
-    print(f"🐛 Modo debug: {'Activado' if debug else 'Desactivado'}")
-    
-    if not debug:
-        print("⚠️  Para producción, usa: gunicorn main:app")
-    
     print("="*50)
     
-    app.run(
-        host='0.0.0.0', 
-        port=port, 
-        debug=debug,
-        threaded=True
-    )
+    # Ejecutar aplicación
+    run_flask_app()
